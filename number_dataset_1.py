@@ -37,7 +37,7 @@ def generate_synthetic_data(j=0,resize=False,resize_width=28,resize_height=28):
     digit_indices_train={}
 
     for digit in range(10):
-        indices_train=np.where(y_test==digit)[0]
+        indices_train=np.where(y_train==digit)[0]
         digit_indices_train[digit]=indices_train
 
     min_length = min(len(indices) for indices in digit_indices_train.values())
@@ -51,8 +51,8 @@ def generate_synthetic_data(j=0,resize=False,resize_width=28,resize_height=28):
 
         for number in range(len(digit_indices_train)):
             idx=digit_indices_train[number][i]
-            image=x_test[idx]
-            label=y_test[idx]
+            image=x_train[idx]
+            label=y_train[idx]
 
             if resize:
                 image = cv2.resize(image, (resize_width, resize_height))
@@ -101,8 +101,8 @@ def generate_synthetic_data(j=0,resize=False,resize_width=28,resize_height=28):
     return j
 
 last_point=generate_synthetic_data(j=0,resize=True,resize_width=28,resize_height=28)
-last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.25),resize_height=int(28*1.25))
-last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.5),resize_height=int(28*1.5))
-last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.75),resize_height=int(28*1.75))
+# last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.25),resize_height=int(28*1.25))
+# last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.5),resize_height=int(28*1.5))
+# last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.75),resize_height=int(28*1.75))
        
 cv2.destroyAllWindows()

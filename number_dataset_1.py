@@ -30,7 +30,7 @@ def generate_synthetic_data(j=0,resize=False,resize_width=28,resize_height=28):
 
     mnist=tf.keras.datasets.mnist
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
-
+    
     added_labels=set()
     added_numbers=set()
 
@@ -42,17 +42,32 @@ def generate_synthetic_data(j=0,resize=False,resize_width=28,resize_height=28):
 
     min_length = min(len(indices) for indices in digit_indices_train.values())
 
-    print(min_length)
+    # print(min_length)
 
     for i in range(min_length):
 
         with open(args.path_to_save_labels+'/'+'Artificial_image_'+str(j)+'.txt', 'w') as file:
             pass  # This does nothing but effectively clears the file
+        
+        unit=0
+        for number in range(len(digit_indices_train)+3):
+            if number>9:
+                idx1=digit_indices_train[1][i]
+                idx2=digit_indices_train[unit][i]
+                image1=x_train[idx1]
+                label1=y_train[idx1]
+                image2=x_train[idx2]
+                label2=y_train[idx2]
+                image1_resized = cv2.resize(image1, (14, 28))
+                image2_resized = cv2.resize(image2, (14, 28))
+                image = np.concatenate((image1_resized, image2_resized), axis=1)
+                label=str(label1)+str(label2)
+                unit+=1
 
-        for number in range(len(digit_indices_train)):
-            idx=digit_indices_train[number][i]
-            image=x_train[idx]
-            label=y_train[idx]
+            else:           
+                idx=digit_indices_train[number][i]
+                image=x_train[idx]
+                label=y_train[idx]
 
             if resize:
                 image = cv2.resize(image, (resize_width, resize_height))
@@ -101,8 +116,8 @@ def generate_synthetic_data(j=0,resize=False,resize_width=28,resize_height=28):
     return j
 
 last_point=generate_synthetic_data(j=0,resize=True,resize_width=28,resize_height=28)
-last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.25),resize_height=int(28*1.25))
-last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.5),resize_height=int(28*1.5))
-last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.75),resize_height=int(28*1.75))
+# last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.25),resize_height=int(28*1.25))
+# last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.5),resize_height=int(28*1.5))
+# last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.75),resize_height=int(28*1.75))
        
 cv2.destroyAllWindows()

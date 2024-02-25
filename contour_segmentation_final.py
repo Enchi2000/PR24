@@ -3,8 +3,8 @@ import os
 import argparse
 import cv2
 import numpy as np
+from sklearn.cluster import KMeans
 #-----------------------------------------
-
 #Definir argumentos de la terminal
 parser=argparse.ArgumentParser()
 parser.add_argument('--path_to_roi',type=str,required=True)
@@ -16,8 +16,9 @@ args=parser.parse_args()
 cv2.namedWindow('Img',cv2.WINDOW_NORMAL)
 cv2.namedWindow('contour',cv2.WINDOW_NORMAL)
 cv2.namedWindow('rest',cv2.WINDOW_NORMAL)
-cv2.namedWindow('lines',cv2.WINDOW_NORMAL)
-#--------------------------------------------
+cv2.namedWindow('numbers',cv2.WINDOW_NORMAL)
+cv2.namedWindow('hand_clock',cv2.WINDOW_NORMAL)
+#-------------------------------------------
 
 #Inicializacion de variables
 detected_inner_contours=[]
@@ -26,6 +27,9 @@ outer_contours=[]
 hull_detected=[]
 inner_contours=[]
 final_shape=[]
+direction_change_points = []
+points=[]
+
 
 min_distance = float('inf')
 
@@ -46,6 +50,8 @@ for file in os.listdir(args.path_to_roi):
         file_name,extension=os.path.splitext(file)
         #Read image
         img=cv2.imread(args.path_to_roi+'/'+file)
+        #Get the height and width of image
+        height, width, _ = img.shape
         #Transforms image into grayscale
         img_gray=cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
         #Create mask for future bitwise operations
@@ -54,6 +60,8 @@ for file in os.listdir(args.path_to_roi):
         mask2=np.zeros_like(img_gray)
         mask3=np.zeros_like(img_gray)
         mask4=np.zeros_like(img_gray)
+        line_image = np.zeros_like(img_gray)
+
         #----------------------------------------
 
         #Apply Gaussian Filter to grayscale image
@@ -148,7 +156,7 @@ for file in os.listdir(args.path_to_roi):
         centery = int(M['m01'] / M['m00'])
         center = (centerx, centery)
         #Draw a circle in the image
-        cv2.circle(img, center, 2, (0, 255, 255), -1)
+        # cv2.circle(img, center, 2, (0, 255, 255), -1)
 
         rest_gray=cv2.bitwise_and(sharp_image,sharp_image,mask=other)
         rest_gray=rest_gray+mask2
@@ -156,6 +164,8 @@ for file in os.listdir(args.path_to_roi):
         #--------------------------------------------------------------------
         #Close any gaps in clock hands
         kernel=np.ones((3,3),np.uint8)
+        adjust2=cv2.erode(adjust,kernel,iterations=30)
+        numbers=cv2.bitwise_and(img,img,mask=adjust2)
         closing = cv2.morphologyEx(rest_gray_th, cv2.MORPH_CLOSE, kernel)
 
         contours,hierarchy=cv2.findContours(closing,cv2.RETR_TREE,cv2.CHAIN_APPROX_NONE)
@@ -173,31 +183,63 @@ for file in os.listdir(args.path_to_roi):
                     min_distance = distance
                     nearest_contour = contour
 
-        cv2.drawContours(mask4,[nearest_contour],-1,(255,255,255),thickness=1)
-        lines = cv2.HoughLines(mask4, 1, np.pi/180, 50)
-        
-        if lines is not None:
-            for line in lines:
-                rho, theta = line[0]
-                a = np.cos(theta)
-                b = np.sin(theta)
-                x0 = a * rho
-                y0 = b * rho
-                x1 = int(x0 + 1000 * (-b))
-                y1 = int(y0 + 1000 * (a))
-                x2 = int(x0 - 1000 * (-b))
-                y2 = int(y0 - 1000 * (a))
-                cv2.line(img, (x1, y1), (x2, y2), (0, 0, 255), 2)
+        cv2.drawContours(mask4,[nearest_contour],-1,(255,255,255),thickness=cv2.FILLED)
+        mask4=cv2.bitwise_and(mask4,mask4,mask=adjust2)
+        hand_clock=cv2.bitwise_and(img,img,mask=mask4)
 
- 
- 
+        mask5=mask2+mask4
+        numbers=cv2.bitwise_not(mask5)
+        numbers=cv2.bitwise_and(img,img,mask=numbers)
+        three_channel_mask2=cv2.merge([mask5]*3)
+        numbers=numbers+three_channel_mask2
+
+        contours, _ = cv2.findContours(mask4, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        for contour in contours:
+            test=cv2.convexHull(contour)
+            lowest_point = (0,0)
+            threshold_distance = 40
+            for point in test:
+                x, y = point[0]
+                points.append((x,y))
+                distance_to_centroid = np.sqrt((x - center[0])**2 + (y - center[1])**2)
+                if y > lowest_point[1] and distance_to_centroid < threshold_distance:
+                    lowest_point = (x, y)
+                # cv2.circle(img, tuple(point[0]), 3, (0, 255, 0), -1)  # Draw a filled circle at each point
+        if lowest_point==(0,0):
+            lowest_point = center
+        
+        if points is None or len(points) == 0:
+            print("Error: No points data provided.")
+        else:
+            
+            num_clusters=5
+            points_array=np.array(points)
+            points_for_clustering = np.float32(points)
+
+            # Perform K-means clustering
+            kmeans = KMeans(n_clusters=num_clusters,init='k-means++',max_iter=300,tol=1e-4,random_state=42)
+            kmeans.fit(points_for_clustering)
+
+            # Get the cluster centers
+            cluster_centers = kmeans.cluster_centers_
+
+            img_with_clusters = img.copy()
+            for cluster_center in cluster_centers:
+                cv2.circle(img_with_clusters, (int(cluster_center[0]), int(cluster_center[1])), 2, (0, 0, 255), -1)
+                cv2.line(img_with_clusters, lowest_point, (int(cluster_center[0]), int(cluster_center[1])), (0, 255, 0), 2)
+                cv2.circle(img_with_clusters, lowest_point, 2, (255, 0, 0), -1)
+                cv2.circle(img_with_clusters, center, 2, (255, 255, 0), -1)
+            
+            cv2.imshow('Cluster Centers', img_with_clusters)
 
         #---------------------------------------------------------------------
-        #Show windows with images
+        # Show windows with images
         cv2.imshow('Img',img)
         cv2.imshow('contour',final_contour)
-        cv2.imshow('rest',rest_gray_th)
-        cv2.imshow('lines',mask4)
+        cv2.imshow('rest',rest)
+        cv2.imshow('numbers',numbers)
+        cv2.imshow('hand_clock',mask4)
+
         #----------------------
         
         #Save the image into the directory
@@ -213,7 +255,8 @@ for file in os.listdir(args.path_to_roi):
         hull_detected=[]
         inner_contours=[]
         final_shape=[]
-
+        direction_change_points = []
+        points=[]
         min_distance = float('inf') 
 
 #Close all windows

@@ -50,7 +50,7 @@ def generate_synthetic_data(j=0,resize=False,resize_width=28,resize_height=28):
             pass  # This does nothing but effectively clears the file
         
         unit=0
-        for number in range(len(digit_indices_train)+3):
+        for number in range(1,len(digit_indices_train)+3):
             if number>9:
                 idx1=digit_indices_train[1][i]
                 idx2=digit_indices_train[unit][i]

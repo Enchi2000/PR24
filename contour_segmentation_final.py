@@ -4,6 +4,7 @@ import argparse
 import cv2
 import numpy as np
 from sklearn.cluster import KMeans
+import matplotlib.pyplot as plt
 #-----------------------------------------
 #Definir argumentos de la terminal
 parser=argparse.ArgumentParser()
@@ -29,6 +30,10 @@ inner_contours=[]
 final_shape=[]
 direction_change_points = []
 points=[]
+
+
+
+# radius = 10000        # Example radius (you can adjust it as needed) ###############
 
 
 min_distance = float('inf')
@@ -60,18 +65,20 @@ for file in os.listdir(args.path_to_roi):
         mask2=np.zeros_like(img_gray)
         mask3=np.zeros_like(img_gray)
         mask4=np.zeros_like(img_gray)
-        line_image = np.zeros_like(img_gray)
-
+        hands=np.zeros_like(img_gray)
         #----------------------------------------
 
         #Apply Gaussian Filter to grayscale image
-        blurred=cv2.GaussianBlur(img_gray,(3,3),0)
+        blurred=cv2.blur(img_gray, (3, 3))
         #Apply laplacian filter to blur image
         laplacian=cv2.Laplacian(blurred,cv2.CV_16S)
         #Make the image sharper
         sharp_image = cv2.convertScaleAbs(laplacian-blurred)
+        laplacian=cv2.convertScaleAbs(laplacian)
+        # histogram = cv2.calcHist([sharp_image], [0], None, [256], [0, 256])
+
         #Apply binarization to image
-        ret,img_threshold=cv2.threshold(sharp_image,229,251,cv2.THRESH_BINARY_INV)
+        ret,img_threshold=cv2.threshold(sharp_image,229,255,cv2.THRESH_BINARY_INV)
 
         #Find contours in img
         contours,hierarchy=cv2.findContours(img_threshold,cv2.RETR_TREE,cv2.CHAIN_APPROX_NONE)
@@ -140,15 +147,15 @@ for file in os.listdir(args.path_to_roi):
         other=cv2.bitwise_not(mask2)
 
         final_contour=cv2.bitwise_and(img,img,mask=mask2)
-        rest=cv2.bitwise_and(img,img,mask=other)
+        rest1=cv2.bitwise_and(img,img,mask=other)
 
         #Make 3 channel masks
         three_channel_mask=cv2.merge([mask2]*3)
         three_channel_mask1=cv2.merge([other]*3) 
 
-        rest=rest+three_channel_mask  
+        rest=rest1+three_channel_mask  
         final_contour=final_contour+three_channel_mask1 
-
+        
         #Get the moments from mask
         M=cv2.moments(mask2)
         #Calculate the center of contour
@@ -156,16 +163,15 @@ for file in os.listdir(args.path_to_roi):
         centery = int(M['m01'] / M['m00'])
         center = (centerx, centery)
         #Draw a circle in the image
-        # cv2.circle(img, center, 2, (0, 255, 255), -1)
+        # cv2.circle(img, center, 3, (0, 0, 255), -1)
 
         rest_gray=cv2.bitwise_and(sharp_image,sharp_image,mask=other)
         rest_gray=rest_gray+mask2
-        ret,rest_gray_th=cv2.threshold(rest_gray,229,251,cv2.THRESH_BINARY_INV)
+        ret,rest_gray_th=cv2.threshold(rest_gray,229,255,cv2.THRESH_BINARY_INV)
         #--------------------------------------------------------------------
         #Close any gaps in clock hands
         kernel=np.ones((3,3),np.uint8)
         adjust2=cv2.erode(adjust,kernel,iterations=30)
-        numbers=cv2.bitwise_and(img,img,mask=adjust2)
         closing = cv2.morphologyEx(rest_gray_th, cv2.MORPH_CLOSE, kernel)
 
         contours,hierarchy=cv2.findContours(closing,cv2.RETR_TREE,cv2.CHAIN_APPROX_NONE)
@@ -229,21 +235,69 @@ for file in os.listdir(args.path_to_roi):
                 cv2.line(img_with_clusters, lowest_point, (int(cluster_center[0]), int(cluster_center[1])), (0, 255, 0), 2)
                 cv2.circle(img_with_clusters, lowest_point, 2, (255, 0, 0), -1)
                 cv2.circle(img_with_clusters, center, 2, (255, 255, 0), -1)
+        
+        cv2.drawContours(hands,[nearest_contour],-1,(255,255,255),thickness=cv2.FILLED)
+        edges = cv2.Canny(rest_gray, 50,150,apertureSize=3)  # Adjust the thresholds as needed
+        lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=35,minLineLength=0,maxLineGap=10)
+
+        # Draw the detected lines on the original image
+        if lines is not None:
+            for line in lines:
+                x1, y1, x2, y2 = line[0]
+                # Calculate Euclidean distance between starting point and point of interest
+                distance = np.sqrt((x1 - lowest_point[0])**2 + (y1 - lowest_point[1])**2)
+                distance1 = np.sqrt((x2 - lowest_point[0])**2 + (y2 - lowest_point[1])**2)
+
+                # If the distance is less than a threshold, draw the line
+                if distance < 30 or distance1 < 10:  # Adjust the threshold as needed
+                    cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 1)
+                    cv2.circle(img,lowest_point,2,(0,0,255),-1)
+
+
+            # cv2.imshow('Cluster Centers', img_with_clusters)
+        # start_angle = -10    # Example start angle (you can adjust it as needed)##################################################
+        # end_angle = 10   # Example end angle (you can adjust it as needed)
+
+        # for _ in range(36):  # 36 iterations for 360 degrees (full circle)
+        #     separation=np.zeros_like(img_gray)
+
+        #     cv2.ellipse(separation, lowest_point, (radius, radius), 0, start_angle, end_angle, (255), -1)
+        #     cv2.ellipse(img, lowest_point, (radius, radius), 0, start_angle, end_angle, (255,0,0), -1)
             
-            cv2.imshow('Cluster Centers', img_with_clusters)
+        #     parts=cv2.bitwise_and(mask4,mask4,mask=separation)
+
+        #     # Increase the start and end angles by 10 degrees
+        #     cv2.circle(img,lowest_point, 3, (0, 255, 0), -1)  # Draw a filled circle at each point
+        #     start_angle += 10
+        #     end_angle += 10
+        #     cv2.imshow('parts',parts)
+        #     cv2.imshow('separation',separation)
+        #     cv2.imshow('Img',img)
+        #     print(start_angle,end_angle)###########################################################################################
+        #     cv2.waitKey(0)
+        
 
         #---------------------------------------------------------------------
         # Show windows with images
+
         cv2.imshow('Img',img)
         cv2.imshow('contour',final_contour)
-        cv2.imshow('rest',rest)
+        cv2.imshow('rest',rest_gray)
         cv2.imshow('numbers',numbers)
         cv2.imshow('hand_clock',mask4)
-
+        cv2.imshow('hands',edges)
+        # plt.figure()
+        # plt.title('Histogram of Grayscale Image')
+        # plt.xlabel('Pixel Value')
+        # plt.ylabel('Frequency')
+        # plt.plot(histogram, color='black')
+        # plt.xlim([0, 256])
+        # plt.ylim([0, 1000])  # Set the y-axis limit here
+        # plt.show()
         #----------------------
         
         #Save the image into the directory
-        # cv2.imwrite(args.path_to_save_contour+'/'+file_name+'.png',rest_gray_th)
+        # cv2.imwrite(args.path_to_save_contour+'/'+file_name+'.png',rest_gray)
 
         #Wait unti key is pressed
         cv2.waitKey(0)

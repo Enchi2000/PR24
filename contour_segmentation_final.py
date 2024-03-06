@@ -4,6 +4,7 @@ import argparse
 import cv2
 import numpy as np
 from sklearn.cluster import KMeans
+from sklearn.cluster import DBSCAN
 import matplotlib.pyplot as plt
 #-----------------------------------------
 #Definir argumentos de la terminal
@@ -30,14 +31,7 @@ inner_contours=[]
 final_shape=[]
 direction_change_points = []
 points=[]
-
-
-
-# radius = 10000        # Example radius (you can adjust it as needed) ###############
-
-
 min_distance = float('inf')
-
 #--------------------------------------------
 
 #Crea un directorio para guardar las imagenes en caso de que no exista
@@ -214,32 +208,10 @@ for file in os.listdir(args.path_to_roi):
         if lowest_point==(0,0):
             lowest_point = center
         
-        if points is None or len(points) == 0:
-            print("Error: No points data provided.")
-        else:
-            
-            num_clusters=5
-            points_array=np.array(points)
-            points_for_clustering = np.float32(points)
-
-            # Perform K-means clustering
-            kmeans = KMeans(n_clusters=num_clusters,init='k-means++',max_iter=300,tol=1e-4,random_state=42)
-            kmeans.fit(points_for_clustering)
-
-            # Get the cluster centers
-            cluster_centers = kmeans.cluster_centers_
-
-            img_with_clusters = img.copy()
-            for cluster_center in cluster_centers:
-                cv2.circle(img_with_clusters, (int(cluster_center[0]), int(cluster_center[1])), 2, (0, 0, 255), -1)
-                cv2.line(img_with_clusters, lowest_point, (int(cluster_center[0]), int(cluster_center[1])), (0, 255, 0), 2)
-                cv2.circle(img_with_clusters, lowest_point, 2, (255, 0, 0), -1)
-                cv2.circle(img_with_clusters, center, 2, (255, 255, 0), -1)
-        
-        cv2.drawContours(hands,[nearest_contour],-1,(255,255,255),thickness=cv2.FILLED)
+        # cv2.drawContours(hands,[nearest_contour],-1,(255,255,255),thickness=cv2.FILLED)
         edges = cv2.Canny(rest_gray, 50,150,apertureSize=3)  # Adjust the thresholds as needed
-        lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=35,minLineLength=0,maxLineGap=10)
-
+        lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=35,minLineLength=9,maxLineGap=10)
+        
         # Draw the detected lines on the original image
         if lines is not None:
             for line in lines:
@@ -248,44 +220,32 @@ for file in os.listdir(args.path_to_roi):
                 distance = np.sqrt((x1 - lowest_point[0])**2 + (y1 - lowest_point[1])**2)
                 distance1 = np.sqrt((x2 - lowest_point[0])**2 + (y2 - lowest_point[1])**2)
 
-                # If the distance is less than a threshold, draw the line
-                if distance < 30 or distance1 < 10:  # Adjust the threshold as needed
-                    cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 1)
-                    cv2.circle(img,lowest_point,2,(0,0,255),-1)
-
-
-            # cv2.imshow('Cluster Centers', img_with_clusters)
-        # start_angle = -10    # Example start angle (you can adjust it as needed)##################################################
-        # end_angle = 10   # Example end angle (you can adjust it as needed)
-
-        # for _ in range(36):  # 36 iterations for 360 degrees (full circle)
-        #     separation=np.zeros_like(img_gray)
-
-        #     cv2.ellipse(separation, lowest_point, (radius, radius), 0, start_angle, end_angle, (255), -1)
-        #     cv2.ellipse(img, lowest_point, (radius, radius), 0, start_angle, end_angle, (255,0,0), -1)
-            
-        #     parts=cv2.bitwise_and(mask4,mask4,mask=separation)
-
-        #     # Increase the start and end angles by 10 degrees
-        #     cv2.circle(img,lowest_point, 3, (0, 255, 0), -1)  # Draw a filled circle at each point
-        #     start_angle += 10
-        #     end_angle += 10
-        #     cv2.imshow('parts',parts)
-        #     cv2.imshow('separation',separation)
-        #     cv2.imshow('Img',img)
-        #     print(start_angle,end_angle)###########################################################################################
-        #     cv2.waitKey(0)
-        
-
+                if distance < 30:  # Adjust the threshold as needed
+                    angle = np.arctan2(y1-y2, x2-x1) * 180.0 / np.pi
+                    if angle < 0:
+                        angle += 360.0
+                    if angle>10 and angle<70:
+                        cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 1)
+                        cv2.circle(img,lowest_point,2,(0,0,255),-1)
+                        angles.append(angle)
+                if distance1 < 30:
+                    angle = np.arctan2(y2-y1, x1-x2) * 180.0 / np.pi
+                    # If angle is negative, make it positive
+                    if angle < 0:
+                        angle += 360.0
+                    if angle>90 and angle<160:
+                        cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 1)
+                        cv2.circle(img,lowest_point,2,(0,0,255),-1)
+                        angles.append(angle)
         #---------------------------------------------------------------------
         # Show windows with images
 
         cv2.imshow('Img',img)
         cv2.imshow('contour',final_contour)
-        cv2.imshow('rest',rest_gray)
+        cv2.imshow('rest',rest)
         cv2.imshow('numbers',numbers)
         cv2.imshow('hand_clock',mask4)
-        cv2.imshow('hands',edges)
+    
         # plt.figure()
         # plt.title('Histogram of Grayscale Image')
         # plt.xlabel('Pixel Value')
@@ -297,7 +257,7 @@ for file in os.listdir(args.path_to_roi):
         #----------------------
         
         #Save the image into the directory
-        # cv2.imwrite(args.path_to_save_contour+'/'+file_name+'.png',rest_gray)
+        # cv2.imwrite(args.path_to_save_contour+'/'+file_name+'.png',adjust)
 
         #Wait unti key is pressed
         cv2.waitKey(0)

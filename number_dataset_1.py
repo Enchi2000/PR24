@@ -4,6 +4,7 @@ import argparse
 import tensorflow as tf
 import os
 import time
+import math
 
 # cv2.namedWindow('MNIST',cv2.WINDOW_NORMAL)
 # cv2.namedWindow('Artificial',cv2.WINDOW_NORMAL)
@@ -24,9 +25,19 @@ if not folder_exist:
     print("A new directory to save the LABELS has been created!")
 
 def generate_synthetic_data(j=0,resize=False,resize_width=28,resize_height=28):
-
     Artificial_image=np.zeros((420,450),dtype=np.uint8)
     grid = np.zeros((Artificial_image.shape[0] // resize_height, Artificial_image.shape[1] // resize_width), dtype=bool)
+
+    clock_positions = {}
+    center_x = Artificial_image.shape[1] // 2
+    center_y = Artificial_image.shape[0] // 2
+    for number in range(1, 13):
+        angle = math.radians(-(number -3 ) * 30)  # Adjusting the angle for clockwise arrangement, starting from 1
+        radius = 60  # Adjust the radius as needed
+        x_pos = center_x + int(radius * math.cos(angle))
+        y_pos = center_y - int(radius * math.sin(angle))  # Subtracting for clockwise direction
+        clock_positions[number] = (x_pos, y_pos)
+
 
     mnist=tf.keras.datasets.mnist
     (x_train, y_train), (x_test, y_test) = mnist.load_data()
@@ -86,6 +97,8 @@ def generate_synthetic_data(j=0,resize=False,resize_width=28,resize_height=28):
             
             x_pos = col * resize_width
             y_pos = row * resize_height
+            x_pos, y_pos = clock_positions[number]
+
 
             Artificial_image[y_pos:y_pos+resize_height,x_pos:x_pos+resize_width]=image
 
@@ -118,6 +131,5 @@ def generate_synthetic_data(j=0,resize=False,resize_width=28,resize_height=28):
 last_point=generate_synthetic_data(j=0,resize=True,resize_width=28,resize_height=28)
 # last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.25),resize_height=int(28*1.25))
 # last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.5),resize_height=int(28*1.5))
-# last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.75),resize_height=int(28*1.75))
-       
+# last_point=generate_synthetic_data(j=last_point,resize=True,resize_width=int(28*1.75),resize_height=int(28*1.75)) 
 cv2.destroyAllWindows()

@@ -34,6 +34,44 @@ points=[]
 min_distance = float('inf')
 #--------------------------------------------
 
+def group_angles_with_tolerance(angles_lengths):
+    grouped_angles = []
+    current_group = []
+    x_group=[]
+    y_group=[]
+
+    # Iterate through the sorted list
+    for i in range(len(angles_lengths)):
+        angle, length , x , y= angles_lengths[i]
+
+        # Check if there's a current group and if the angle is within tolerance of the last angle in the group
+        if current_group and abs(angle - current_group[-1][0]) <= 0.1 * current_group[-1][0]:
+            current_group.append((angle, length))
+            x_group.append(x)
+            y_group.append(y)
+        else:
+            # Start a new group
+            if current_group:
+                avg_angle = sum(angle for angle, _ in current_group) / len(current_group)
+                avg_length = sum(length for _, length in current_group) / len(current_group)
+                x1_avg = sum(x_group) / len(x_group)
+                y1_avg = sum(y_group) / len(y_group)
+                grouped_angles.append((avg_angle, avg_length,x1_avg,y1_avg))
+            current_group = [(angle, length)]
+            x_group = [x]
+            y_group = [y]
+
+    # Add the last group
+    if current_group:
+        avg_angle = sum(angle for angle, _ in current_group) / len(current_group)
+        avg_length = sum(length for _, length in current_group) / len(current_group)
+        x1_avg = sum(x_group) / len(x_group)
+        y1_avg = sum(y_group) / len(y_group)
+        grouped_angles.append((avg_angle, avg_length,x1_avg,y1_avg))
+
+    return grouped_angles
+
+
 #Crea un directorio para guardar las imagenes en caso de que no exista
 folder_exist=os.path.exists(args.path_to_save_contour)
 if not folder_exist:
@@ -210,8 +248,11 @@ for file in os.listdir(args.path_to_roi):
         
         # cv2.drawContours(hands,[nearest_contour],-1,(255,255,255),thickness=cv2.FILLED)
         edges = cv2.Canny(rest_gray, 50,150,apertureSize=3)  # Adjust the thresholds as needed
-        lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=35,minLineLength=9,maxLineGap=10)
+        lines = cv2.HoughLinesP(edges, 1, np.pi/180, threshold=37,minLineLength=22,maxLineGap=10)
         
+        angles_lengths = []
+
+
         # Draw the detected lines on the original image
         if lines is not None:
             for line in lines:
@@ -227,7 +268,7 @@ for file in os.listdir(args.path_to_roi):
                     if angle>10 and angle<70:
                         cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 1)
                         cv2.circle(img,lowest_point,2,(0,0,255),-1)
-                        angles.append(angle)
+                        angles_lengths.append((angle,distance1,x1,y1))
                 if distance1 < 30:
                     angle = np.arctan2(y2-y1, x1-x2) * 180.0 / np.pi
                     # If angle is negative, make it positive
@@ -236,7 +277,17 @@ for file in os.listdir(args.path_to_roi):
                     if angle>90 and angle<160:
                         cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 1)
                         cv2.circle(img,lowest_point,2,(0,0,255),-1)
-                        angles.append(angle)
+                        angles_lengths.append((angle,distance,x2,y2))
+            angles_lengths.sort(key=lambda x:x[0])
+            grouped_angles=group_angles_with_tolerance(angles_lengths)
+            
+            for angle, length,x_A,y_A in grouped_angles:
+                # Calculate the endpoint of the line based on the average angle and length
+                x2 = int(int(x_A) + length * np.cos(np.radians(angle)))
+                y2 = int(int(y_A) - length * np.sin(np.radians(angle)))
+                
+                # Draw the line
+                cv2.line(img, (int(x_A),int(y_A)), (x2, y2), (0, 0, 255), 2)
         #---------------------------------------------------------------------
         # Show windows with images
 

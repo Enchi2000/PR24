@@ -116,9 +116,14 @@ def generate_synthetic_data(j=0,resize=False,resize_width=28,resize_height=28):
                 file.write(data+'\n')
 
             # print('label is: ',label)
-            # cv2.imshow('MNIST',image)
+            # cv2.imshow('MNIST',noise)
             # cv2.imshow('Artificial',Artificial_image)
             # cv2.waitKey(0)
+            
+        noise = np.random.randint(0, 150, Artificial_image.shape, dtype=np.uint8)
+        noisy_mask = cv2.add(Artificial_image, noise)
+        # cv2.imshow('lol',noisy_mask)
+        # cv2.waitKey(0)
 
         cv2.imwrite(args.path_to_save_images+'/'+'Artificial_image_'+str(j)+'.png',Artificial_image)
         Artificial_image=np.zeros((420,450),dtype=np.uint8)

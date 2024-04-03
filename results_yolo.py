@@ -33,8 +33,7 @@ def update_params(*args):
     # Display the source image with circles
     cv2.imshow('Parameters', source_copy)
 
-def near_contour(contours,point,point1):
-    min_distance = np.inf
+def near_contour(contours,point):
     number=None
     nearest_contour=None
     point_contour=None
@@ -46,8 +45,7 @@ def near_contour(contours,point,point1):
             contour_centroid_x = int(M["m10"] / M["m00"])
             contour_centroid_y = int(M["m01"] / M["m00"])
             dist = np.sqrt((point[0] - contour_centroid_x)**2 + (point[1] - contour_centroid_y)**2)
-            if area>20 and area<500:  # Ensure the point is inside the contour and update the nearest contour
-                min_distance = dist
+            if area>20 and area<700:  # Ensure the point is inside the contour and update the nearest contour
                 nearest_contour = cnt
                 number=i
                 point_contour=contour_centroid_x,contour_centroid_y
@@ -60,15 +58,38 @@ def distance(centroid1, centroid2):
     return ((x2 - x1) ** 2 + (y2 - y1) ** 2) ** 0.5
 
 def calculate_centroid(bbox):
-    x1, y1, w, h = bbox
+    x1, y1, w, h,number= bbox
     return (int(x1 + w / 2), int(y1 + h / 2))
 
 def draw_bounding_boxes(image, bboxes, color=(255, 255, 0), thickness=1):
-    for bbox in bboxes:
-        x, y, w, h = bbox
-        cv2.rectangle(image, (x, y), (x + w, y + h), color, thickness)
+    if len(bboxes)>1:
+        x,y,w,h,number=bboxes[0]
+        x1,y1,w1,h1,number1=bboxes[1]
+        difference_x=abs(x-x1)
+        difference_y=abs(y-y1)
+        max_h=max(h,h1)
+        if x<x1:
+            real_width=difference_x+w1
+            real_x=x
+        else:
+            real_x=x1
+            real_width=difference_x+w
+        if y<y1:
+            real_height=difference_y+max_h
+            real_y=y
+        else:
+            real_height=difference_y+max_h
+            real_y=y1
+        real_bbox=(real_x,real_y,real_width,real_height)
 
-
+        cv2.rectangle(image, (real_x, real_y), (real_x + real_width, real_y + real_height), color, thickness=1)
+    else:
+        for bbox in bboxes:
+            real_x, real_y, real_width, real_height ,number= bbox
+            cv2.rectangle(image, (real_x, real_y), (real_x + real_width, real_y + real_height), color, thickness=1)
+        real_bbox=(real_x,real_y,real_width,real_height)
+    return real_bbox
+    
 
 for file in os.listdir('/home/enchi/Documentos/PEF/test_images'):
     #Check if files end with .PNG
@@ -81,30 +102,8 @@ for file in os.listdir('/home/enchi/Documentos/PEF/test_images'):
         gray=cv2.cvtColor(source,cv2.COLOR_BGR2GRAY)
         draw1=source.copy()
         mask = np.zeros_like(gray)
-        numbers = np.zeros_like(gray)
         circle=np.zeros_like(gray)
         
-
-        initial_area = cv2.countNonZero(clock_contour)
-
-        # Define erosion rate (e.g., 10% reduction in area)
-        erosion_rate = 0.0
-
-        # Initialize variables
-        current_area = initial_area
-        eroded_mask = clock_contour.copy()
-        count=0
-
-        while current_area > initial_area * (1 - erosion_rate):
-            # Define structuring element for erosion
-            kernel = np.ones((5,5),np.uint8)
-            
-            # Perform erosion
-            eroded_mask = cv2.erode(eroded_mask, kernel, iterations=1)
-            
-            # Calculate the area of the eroded mask
-            current_area = cv2.countNonZero(eroded_mask)
-        clock_contour=eroded_mask
 
         M=cv2.moments(clock_contour)
         #Calculate the center of contour
@@ -132,80 +131,743 @@ for file in os.listdir('/home/enchi/Documentos/PEF/test_images'):
                     angles.remove(int(angle_deg))
                     # If yes, add this point to the selected points list
                     selected_points.append((point,int(angle_deg)))  
-            nearest_contours_points=[] 
-            contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+            contours, _ = cv2.findContours(gray, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
             contours=list(contours)
-            for point, angle in selected_points:
+            sorted_points = sorted(selected_points, key=lambda x: x[1])
+            angles_less_than_90 = [(point, angle) for point, angle in selected_points if angle <= 90]
+            angles_greater_than_90 = [(point, angle) for point, angle in selected_points if angle > 90]
+            # Sort the parts in descending order based on the angle
+            angles_less_than_90.sort(key=lambda x: x[1], reverse=True)
+            angles_greater_than_90.sort(key=lambda x: x[1],reverse=True)
+            # Concatenate the sorted lists
+            rearranged_list = angles_less_than_90 + angles_greater_than_90
+
+            
+            numbers_detected=[]
+            for point, angle in rearranged_list:
+                bboxes=[]
+                condition=True
                 if angle in [90]:
-                    limit_x_max=point[0]*1.2
-                    limit_x_min=point[0]*0.8
-                    limit_y_max=point[1]*1.5
-                    limit_y_min=point[1]*0.4
-                    bboxes=[]
-                    condition=True
-                    iterations=contours
+                    limit_x_max=int(point[0]*1.2)
+                    limit_x_min=int(point[0]*0.8)
+                    limit_y_max=int(point[1]*1.6)
+                    limit_y_min=int(point[1]*0.4)
+                    # cv2.rectangle(draw1, (limit_x_min, limit_y_min), (limit_x_min +(limit_x_max-limit_x_min), limit_y_min + (limit_y_max-limit_y_min)), (255, 255, 0), 1) 
+                    iterations=contours.copy()
                     while condition:
-                        number,nearest_contour,point_contour=near_contour(iterations,point,point)
+                        number,nearest_contour,point_contour=near_contour(iterations,point)
                         if number is not None or nearest_contour is not None or point_contour is not None:
                             del iterations[number] 
                             x, y, w, h = cv2.boundingRect(nearest_contour)
-                            middle_x,middle_y=calculate_centroid((x,y,w,h))
-                            
+                            middle_x,middle_y=calculate_centroid((x,y,w,h,number))
                             ratio=w/h
                             area_r=w*h
-                            cv2.rectangle(draw1, (x, y), (x +w, y + h), (0, 255, 255), 1) 
+                            # cv2.rectangle(draw1, (x, y), (x +w, y + h), (0, 255, 255), 1) 
                             if limit_x_min<middle_x<limit_x_max and limit_y_min<middle_y<limit_y_max:   
                                 if ratio>1.2:
                                     if 300<=area_r<1400:
-                                        cv2.rectangle(draw1, (x, y), (x +w, y + h), (0, 0, 255), 1)
-                                        # bboxes.append((x,y,w,h))
-                                        cv2.circle(draw1,(middle_x,middle_y),2,(0,0,255),-1)
+                                        bboxes=[]
+                                        # cv2.rectangle(draw1, (x, y), (x +w, y + h), (0, 0, 255), 1)
+                                        bboxes.append((x,y,w,h,number))
+                                        # cv2.circle(draw1,(middle_x,middle_y),2,(0,0,255),-1)
                                         condition=False
                                 else:
                                     # cv2.rectangle(draw1, (x, y), (x +w, y + h), (0, 255, 255), 1)
                                     if 48<=area_r<1300:
-                                        bboxes.append((x,y,w,h))
-                                        cv2.rectangle(draw1, (x, y), (x +w, y + h), (255, 0, 0), 1)
+                                        bboxes.append((x,y,w,h,number))
+                                        # cv2.rectangle(draw1, (x, y), (x +w, y + h), (255, 0, 0), 1)
                                     else:
                                         h=int(h*0.5)
                                         if h>w:
-                                            # bboxes.append((x,y,w,h))
-                                            cv2.rectangle(draw1, (x, y), (x +w, y + h), (255, 0, 0), 1)
-                          
+                                            bboxes=[]
+                                            bboxes.append((x,y,w,h,number))
+                                            # cv2.rectangle(draw1, (x, y), (x +w, y + h), (255, 0, 0), 1)
+                                            condition=False   
                         else:
                             condition=False
                         if len(iterations)==0:
                             print('lol')
+                    # Keep track of the closest pair of bounding boxes
+                    if len(bboxes)>1:
+                        closest_pair = None
+                        min_separation = float('inf')
+                        closest_bboxes=[]
+                        numbers=None
+
+                        # Iterate over each pair of bounding boxes
+                        for i in range(len(bboxes)):
+                            centroid1 = calculate_centroid(bboxes[i])
+                            x,y,w,h,number_i=bboxes[i]
+                            for j in range(i+1, len(bboxes)):
+                                x1,y1,w1,h1,number_j=bboxes[j]
+                                final_w=w+w1
+                                f_ratio=final_w/h
+                                dist_y=abs(y-y1)
+                                centroid2 = calculate_centroid(bboxes[j])
+                                separation = distance(centroid1, centroid2)
+                                if separation < min_separation and f_ratio>0.6 and dist_y<7:
+                                    min_separation = separation
+                                    closest_pair = (i, j)
+                                    closest_bboxes=[bboxes[i],bboxes[j]]
+                                    numbers=(number_i,number_j)
+
+                        if closest_bboxes:
+                            number_detected=draw_bounding_boxes(draw1, closest_bboxes)
+                            numbers_detected.append((number_detected,12))
+
+                        if numbers is not None:
+                            del contours[numbers[0]]
+                            del contours[numbers[1]]
+                        else:
+                            print("Ningun 12 detectado")
+            
+                    elif len(bboxes)==1 and number is not None:
+                        del contours[number]
+                        number_detected=draw_bounding_boxes(draw1,bboxes)
+                        numbers_detected.append((number_detected,12))
+                    else:
+                        print("Ningun 12 detectado")
+                                
+                elif angle in [60]:
+                    limit_x_max=int(point[0]+60)
+                    limit_x_min=int(point[0]-60)
+                    limit_y_max=int(point[1]+60)
+                    limit_y_min=int(point[1]-60)
+                    # cv2.rectangle(draw1, (limit_x_min, limit_y_min), (limit_x_min +(limit_x_max-limit_x_min), limit_y_min + (limit_y_max-limit_y_min)), (0, 255, 255), 1) 
+                    min_w=float('inf')
+                    min_dist=float('inf')
+                    iterations=contours.copy()
+                    bboxes=[]
+                    while condition:
+                        number,nearest_contour,point_contour=near_contour(iterations,point)
+                        if number is not None or nearest_contour is not None or point_contour is not None:
+                            del iterations[number] 
+                            x, y, w, h = cv2.boundingRect(nearest_contour)
+                            middle_x,middle_y=calculate_centroid((x,y,w,h,number))
+                            ratio=w/h
+                            area_r=w*h
+                            # print(numbers_detected[0][0])
+                            if numbers_detected:
+                                Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=numbers_detected[0][0]
+                            else:
+                                Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=(centerx+10,0,0,0)
+                            #     cv2.circle(draw1,(centerx,centery),2,(0,0,255),-1)
+                            # print('Limit_X: '+str(limit_x_min)+'<'+str(middle_x)+'<'+str(limit_x_max))
+                            # print('Limit_Y: '+str(limit_y_min)+'<'+str(middle_y)+'<'+str(limit_y_max))
+                            if limit_x_min<middle_x<limit_x_max and limit_y_min<middle_y<limit_y_max and area_r>69: 
+                                if ratio<1:
+                                    # dist=distance(point,(middle_x,middle_y))
+                                    if w<min_w and middle_x>Pr_number_x:
+                                        bboxes=[]
+                                        min_w=w
+                                        bboxes.append((x,y,w,h,number))
+
+                        else:
+                            condition=False
+                        if len(iterations)==0:
+                            print('lol')
+                    if bboxes:
+                        number=bboxes[0][4]
+                        del contours[number]
+                        number_detected=draw_bounding_boxes(draw1,bboxes)
+                        numbers_detected.append((number_detected,1))
+                    else:
+                        print('Ningun 1 detectado')
+            
+            
+                elif angle in [30]:
+                    limit_x_max=int(point[0]+60)
+                    limit_x_min=int(point[0]-80)
+                    limit_y_max=int(point[1]+60)
+                    limit_y_min=int(point[1]-60)
+                    # cv2.rectangle(draw1, (limit_x_min, limit_y_min), (limit_x_min +(limit_x_max-limit_x_min), limit_y_min + (limit_y_max-limit_y_min)), (0, 255, 255), 1)
+                    min_w=float('inf')
+                    min_hull=float('inf')
+                    min_dist=float('inf')
+                    iterations=contours.copy()
+                    while condition:
+                        number,nearest_contour,point_contour=near_contour(iterations,point)
+                        if number is not None or nearest_contour is not None or point_contour is not None:
+                            del iterations[number] 
+                            hull=cv2.convexHull(nearest_contour,returnPoints=True)
+                            x, y, w, h = cv2.boundingRect(nearest_contour)
+                            middle_x,middle_y=calculate_centroid((x,y,w,h,number))
+                            ratio=w/h
+                            area_r=w*h
+                            for item in numbers_detected:
+                                if item[1] == 1:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=item[0]
+                                else:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=(centerx+6,0,0,0)
+                                    cv2.circle(draw1,(centerx,centery),2,(0,0,255),-1)
+  
+                            if limit_x_min<middle_x<limit_x_max and limit_y_min<middle_y<limit_y_max and area_r>69: 
+                                # print('Limit_X: '+str(limit_x_min)+'<'+str(middle_x)+'<'+str(limit_x_max))
+                                # print('Limit_Y: '+str(limit_y_min)+'<'+str(middle_y)+'<'+str(limit_y_max))
+                                if ratio<1.2:
+                                    dist=distance(point,(middle_x,middle_y))
+                                    if x>Pr_number_x and middle_y<centery and middle_y>Pr_number_y and len(hull)<min_hull and dist<min_dist:
+                                        min_hull=len(hull)
+                                        min_dist=dist
+                                        bboxes=[]
+                                        bboxes.append((x,y,w,h,number))
+                                        # print(len(hull))
+                                        # cv2.polylines(draw1,[hull],isClosed=True,color=150,thickness=1)
+                                elif ratio>1.5 and area_r>3000:
+                                    # print(area_r)
+                                    x=x+w-25
+                                    y=y+10
+                                    w=25
+                                    h=25
+                                    # cv2.rectangle(draw1, (x,y), (x + w, y + h), color=(255,0,150), thickness=1)
+                                    bboxes=[]
+                                    bboxes.append((x,y,w,h,number))
+                                    condition=False
+                            # else:
+                            #     cv2.rectangle(draw1, (x,y), (x + w, y + h), color=(255,0,150), thickness=1)
+
+
+                        else:
+                            condition=False
+                    if len(iterations)==0:
+                        print('lol')
+                    if bboxes:
+                        number=bboxes[0][4]
+                        del contours[number]
+                        number_detected=draw_bounding_boxes(draw1,bboxes)
+                        numbers_detected.append((number_detected,2))
+                    else:
+                        print('Ningun 2 detectado')
+                elif angle in [0]:
+                    limit_x_max=int(point[0]+70)
+                    limit_x_min=int(point[0]-70)
+                    limit_y_max=int(point[1]+80)
+                    limit_y_min=int(point[1]-80)
+                    # cv2.rectangle(draw1, (limit_x_min, limit_y_min), (limit_x_min +(limit_x_max-limit_x_min), limit_y_min + (limit_y_max-limit_y_min)), (0, 255, 255), 1)
+                    min_w=float('inf')
+                    min_hull=float('inf')
+                    min_dist=float('inf')
+                    max_h=0
+                    iterations=contours.copy()
+                    while condition:
+                        number,nearest_contour,point_contour=near_contour(iterations,point)
+                        if number is not None or nearest_contour is not None or point_contour is not None:
+                            del iterations[number] 
+                            hull=cv2.convexHull(nearest_contour,returnPoints=True)
+                            perimeter = cv2.arcLength(nearest_contour, True)
+                            approx = cv2.approxPolyDP(nearest_contour, 0.01 * perimeter, True)
+                            x, y, w, h = cv2.boundingRect(nearest_contour)
+                            middle_x,middle_y=calculate_centroid((x,y,w,h,number))
+                            ratio=w/h
+                            area=cv2.contourArea(nearest_contour)
+                            area_r=w*h
+                            for item in numbers_detected:
+                                if item[1] == 2:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=item[0]
+                                else:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=(centerx+6,0,0,0)
+                                    cv2.circle(draw1,(centerx,centery),2,(0,0,255),-1)
+                            
+
+                            if limit_x_min<middle_x<limit_x_max and limit_y_min<middle_y<limit_y_max and area_r>69: 
+                                # print('Limit_X: '+str(limit_x_min)+'<'+str(middle_x)+'<'+str(limit_x_max))
+                                # print('Limit_Y: '+str(limit_y_min)+'<'+str(middle_y)+'<'+str(limit_y_max))
+                                if ratio<1.2:
+                                    dist=distance(point,(middle_x,middle_y))
+                                    if y>Pr_number_y and middle_y<=centery and middle_x>Pr_number_x and h>max_h:
+                                        max_h=h
+                                        bboxes=[]
+                                        bboxes.append((x,y,w,h,number))
+                                    elif bboxes==[]:
+                                        if dist<min_dist and dist<65 and ratio<1.1 and y<1.1*centery:
+                                            min_dist=dist
+                                            bboxes=[]
+                                            bboxes.append((x,y,w,h,number))
+
+                                    
+                        else:
+                            condition=False
+                    if len(iterations)==0:
+                        print('lol')
+                    if bboxes:
+                        number=bboxes[0][4]
+                        del contours[number]
+                        number_detected=draw_bounding_boxes(draw1,bboxes)
+                        numbers_detected.append((number_detected,3))
+                    else:
+                        print('Ningun 3 detectado')
+
+                    # cv2.circle(draw1,tuple(point),2,(0,0,255),-1)
+                
+                elif angle in [330]:
+                    limit_x_max=int(point[0]+70)
+                    limit_x_min=int(point[0]-70)
+                    limit_y_max=int(point[1]+80)
+                    limit_y_min=int(point[1]-80)
+                    # cv2.rectangle(draw1, (limit_x_min, limit_y_min), (limit_x_min +(limit_x_max-limit_x_min), limit_y_min + (limit_y_max-limit_y_min)), (0, 255, 255), 1)
+                    min_dist=float('inf')
+                    iterations=contours.copy()
+                    while condition:
+                        number,nearest_contour,point_contour=near_contour(iterations,point)
+                        if number is not None or nearest_contour is not None or point_contour is not None:
+                            del iterations[number] 
+                            hull=cv2.convexHull(nearest_contour,returnPoints=True)
+                            perimeter = cv2.arcLength(nearest_contour, True)
+                            approx = cv2.approxPolyDP(nearest_contour, 0.01 * perimeter, True)
+                            x, y, w, h = cv2.boundingRect(nearest_contour)
+                            middle_x,middle_y=calculate_centroid((x,y,w,h,number))
+                            ratio=w/h
+                            area=cv2.contourArea(nearest_contour)
+                            area_r=w*h
+                            for item in numbers_detected:
+                                if item[1] == 3:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=item[0]
+                                else:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=(centerx+6,0,0,0)
+                                    cv2.circle(draw1,(centerx,centery),2,(0,0,255),-1)
+                            
+
+                            if limit_x_min<middle_x<limit_x_max and limit_y_min<middle_y<limit_y_max and area_r>69: 
+                                # print('Limit_X: '+str(limit_x_min)+'<'+str(middle_x)+'<'+str(limit_x_max))
+                                # print('Limit_Y: '+str(limit_y_min)+'<'+str(middle_y)+'<'+str(limit_y_max))
+                                if ratio<1.2:
+                                    dist=distance((x,y),(Pr_number_x,Pr_number_y))
+                                    # print(dist)
+                                    if y>Pr_number_y and middle_y>centery and dist<min_dist:
+                                        min_dist=dist
+                                        bboxes=[]
+                                        bboxes.append((x,y,w,h,number))
+                                    # elif bboxes==[]:
+                                    #     if dist<min_dist and dist<65 and ratio<1.1 and y<1.1*centery:
+                                    #         min_dist=dist
+                                    #         bboxes=[]
+                                    #         bboxes.append((x,y,w,h,number))
+
+                                    
+                        else:
+                            condition=False
+                    if len(iterations)==0:
+                        print('lol')
+                    if bboxes:
+                        number=bboxes[0][4]
+                        del contours[number]
+                        number_detected=draw_bounding_boxes(draw1,bboxes)
+                        numbers_detected.append((number_detected,4))
+                    else:
+                        print('Ningun 4 detectado')
+
+                    cv2.circle(draw1,tuple(point),2,(0,0,255),-1)
+                elif angle in [300]:
+                    limit_x_max=int(point[0]+70)
+                    limit_x_min=int(point[0]-70)
+                    limit_y_max=int(point[1]+80)
+                    limit_y_min=int(point[1]-80)
+                    # cv2.rectangle(draw1, (limit_x_min, limit_y_min), (limit_x_min +(limit_x_max-limit_x_min), limit_y_min + (limit_y_max-limit_y_min)), (0, 255, 255), 1)
+                    min_dist=float('inf')
+                    iterations=contours.copy()
+                    while condition:
+                        number,nearest_contour,point_contour=near_contour(iterations,point)
+                        if number is not None or nearest_contour is not None or point_contour is not None:
+                            del iterations[number] 
+                            hull=cv2.convexHull(nearest_contour,returnPoints=True)
+                            perimeter = cv2.arcLength(nearest_contour, True)
+                            approx = cv2.approxPolyDP(nearest_contour, 0.01 * perimeter, True)
+                            x, y, w, h = cv2.boundingRect(nearest_contour)
+                            middle_x,middle_y=calculate_centroid((x,y,w,h,number))
+                            ratio=w/h
+                            area=cv2.contourArea(nearest_contour)
+                            area_r=w*h
+                            for item in numbers_detected:
+                                if item[1] == 4:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=item[0]
+                                else:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=(centerx+6,0,0,0)
+                                    cv2.circle(draw1,(centerx,centery),2,(0,0,255),-1)
+                            
+
+                            if limit_x_min<middle_x<limit_x_max and limit_y_min<middle_y<limit_y_max and area_r>69: 
+                                # print('Limit_X: '+str(limit_x_min)+'<'+str(middle_x)+'<'+str(limit_x_max))
+                                # print('Limit_Y: '+str(limit_y_min)+'<'+str(middle_y)+'<'+str(limit_y_max))
+                                if ratio<1.2:
+                                    dist=distance((x,y),(Pr_number_x,Pr_number_y))
+                                    # print(dist)
+                                    if y>Pr_number_y and middle_y>centery and dist<min_dist and x<Pr_number_x:
+                                        min_dist=dist
+                                        bboxes=[]
+                                        bboxes.append((x,y,w,h,number))
+                                    # elif bboxes==[]:
+                                    #     if dist<min_dist and dist<65 and ratio<1.1 and y<1.1*centery:
+                                    #         min_dist=dist
+                                    #         bboxes=[]
+                                    #         bboxes.append((x,y,w,h,number))
+
+                                    
+                        else:
+                            condition=False
+                    if len(iterations)==0:
+                        print('lol')
+                    if bboxes:
+                        number=bboxes[0][4]
+                        del contours[number]
+                        number_detected=draw_bounding_boxes(draw1,bboxes)
+                        numbers_detected.append((number_detected,5))
+                    else:
+                        print('Ningun 5 detectado')
+
+                    cv2.circle(draw1,tuple(point),2,(0,0,255),-1)
+                elif angle in [270]:
+                    limit_x_max=int(point[0]+70)
+                    limit_x_min=int(point[0]-70)
+                    limit_y_max=int(point[1]+80)
+                    limit_y_min=int(point[1]-80)
+                    # cv2.rectangle(draw1, (limit_x_min, limit_y_min), (limit_x_min +(limit_x_max-limit_x_min), limit_y_min + (limit_y_max-limit_y_min)), (0, 255, 255), 1)
+                    min_dist=float('inf')
+                    iterations=contours.copy()
+                    while condition:
+                        number,nearest_contour,point_contour=near_contour(iterations,point)
+                        if number is not None or nearest_contour is not None or point_contour is not None:
+                            del iterations[number] 
+                            hull=cv2.convexHull(nearest_contour,returnPoints=True)
+                            perimeter = cv2.arcLength(nearest_contour, True)
+                            approx = cv2.approxPolyDP(nearest_contour, 0.01 * perimeter, True)
+                            x, y, w, h = cv2.boundingRect(nearest_contour)
+                            middle_x,middle_y=calculate_centroid((x,y,w,h,number))
+                            ratio=w/h
+                            area=cv2.contourArea(nearest_contour)
+                            area_r=w*h
+                            for item in numbers_detected:
+                                if item[1] == 5:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=item[0]
+                                else:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=(centerx+6,0,0,0)
+                                    cv2.circle(draw1,(centerx,centery),2,(0,0,255),-1)
+                            
+
+                            if limit_x_min<middle_x<limit_x_max and limit_y_min<middle_y<limit_y_max and area_r>69: 
+                                # print('Limit_X: '+str(limit_x_min)+'<'+str(middle_x)+'<'+str(limit_x_max))
+                                # print('Limit_Y: '+str(limit_y_min)+'<'+str(middle_y)+'<'+str(limit_y_max))
+                                # print(ratio)
+                                if ratio<1.4:
+                                    dist=distance((x,y),(Pr_number_x,Pr_number_y))
+                                    # print(dist)
+                                    if y>(Pr_number_y-10) and middle_y>centery and dist<min_dist and x<Pr_number_x:
+                                        min_dist=dist
+                                        bboxes=[]
+                                        bboxes.append((x,y,w,h,number))
+                                    # elif bboxes==[]:
+                                    #     if dist<min_dist and dist<65 and ratio<1.1 and y<1.1*centery:
+                                    #         min_dist=dist
+                                    #         bboxes=[]
+                                    #         bboxes.append((x,y,w,h,number))
+
+                                    
+                        else:
+                            condition=False
+                    if len(iterations)==0:
+                        print('lol')
+                    if bboxes:
+                        number=bboxes[0][4]
+                        del contours[number]
+                        number_detected=draw_bounding_boxes(draw1,bboxes)
+                        numbers_detected.append((number_detected,6))
+                    else:
+                        print('Ningun 6 detectado')
+                        numbers_detected.append(((point[0],point[1],0,0),6))
+                        
+
+                    cv2.circle(draw1,tuple(point),2,(0,0,255),-1)
+
+                elif angle in [240]:
+                    limit_x_max=int(point[0]+70)
+                    limit_x_min=int(point[0]-70)
+                    limit_y_max=int(point[1]+80)
+                    limit_y_min=int(point[1]-80)
+                    # cv2.rectangle(draw1, (limit_x_min, limit_y_min), (limit_x_min +(limit_x_max-limit_x_min), limit_y_min + (limit_y_max-limit_y_min)), (0, 255, 255), 1)
+                    min_dist=float('inf')
+                    iterations=contours.copy()
+                    while condition:
+                        number,nearest_contour,point_contour=near_contour(iterations,point)
+                        if number is not None or nearest_contour is not None or point_contour is not None:
+                            del iterations[number] 
+                            hull=cv2.convexHull(nearest_contour,returnPoints=True)
+                            perimeter = cv2.arcLength(nearest_contour, True)
+                            approx = cv2.approxPolyDP(nearest_contour, 0.01 * perimeter, True)
+                            x, y, w, h = cv2.boundingRect(nearest_contour)
+                            middle_x,middle_y=calculate_centroid((x,y,w,h,number))
+                            ratio=w/h
+                            area=cv2.contourArea(nearest_contour)
+                            area_r=w*h
+                            for item in numbers_detected:
+                                if item[1] == 6:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=item[0]
+                                else:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=(centerx+6,0,0,0)
+                                    cv2.circle(draw1,(centerx,centery),2,(0,0,255),-1)
+                            
+
+                            if limit_x_min<middle_x<limit_x_max and limit_y_min<middle_y<limit_y_max and area_r>69: 
+                                # print('Limit_X: '+str(limit_x_min)+'<'+str(middle_x)+'<'+str(limit_x_max))
+                                # print('Limit_Y: '+str(limit_y_min)+'<'+str(middle_y)+'<'+str(limit_y_max))
+                                if ratio<1.4:
+                                    dist=distance((x,y),(Pr_number_x,Pr_number_y))
+                                    # print(dist)
+                                    if y<(Pr_number_y+10) and middle_y>centery and dist<min_dist and x<Pr_number_x:
+                                        min_dist=dist
+                                        bboxes=[]
+                                        bboxes.append((x,y,w,h,number))
+                                    # elif bboxes==[]:
+                                    #     if dist<min_dist and dist<65 and ratio<1.1 and y<1.1*centery:
+                                    #         min_dist=dist
+                                    #         bboxes=[]
+                                    #         bboxes.append((x,y,w,h,number))
+
+                                    
+                        else:
+                            condition=False
+                    if len(iterations)==0:
+                        print('lol')
+                    if bboxes:
+                        number=bboxes[0][4]
+                        del contours[number]
+                        number_detected=draw_bounding_boxes(draw1,bboxes)
+                        numbers_detected.append((number_detected,7))
+                    else:
+                        numbers_detected.append(((point[0],point[1],0,0),7))
+                        print('Ningun 7 detectado')
+                        
+
+                    cv2.circle(draw1,tuple(point),2,(0,0,255),-1)
+                elif angle in [210]:
+                    limit_x_max=int(point[0]+70)
+                    limit_x_min=int(point[0]-70)
+                    limit_y_max=int(point[1]+80)
+                    limit_y_min=int(point[1]-80)
+                    # cv2.rectangle(draw1, (limit_x_min, limit_y_min), (limit_x_min +(limit_x_max-limit_x_min), limit_y_min + (limit_y_max-limit_y_min)), (0, 255, 255), 1)
+                    min_dist=float('inf')
+                    iterations=contours.copy()
+                    while condition:
+                        number,nearest_contour,point_contour=near_contour(iterations,point)
+                        if number is not None or nearest_contour is not None or point_contour is not None:
+                            del iterations[number] 
+                            hull=cv2.convexHull(nearest_contour,returnPoints=True)
+                            perimeter = cv2.arcLength(nearest_contour, True)
+                            approx = cv2.approxPolyDP(nearest_contour, 0.01 * perimeter, True)
+                            x, y, w, h = cv2.boundingRect(nearest_contour)
+                            middle_x,middle_y=calculate_centroid((x,y,w,h,number))
+                            ratio=w/h
+                            area=cv2.contourArea(nearest_contour)
+                            area_r=w*h
+                            for item in numbers_detected:
+                                if item[1] == 7:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=item[0]
+                                else:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=(centerx+6,0,0,0)
+                                    cv2.circle(draw1,(centerx,centery),2,(0,0,255),-1)
+
+
+                            if limit_x_min<middle_x<limit_x_max and limit_y_min<middle_y<limit_y_max and area_r>69: 
+                                # print('Inicio')
+                                # print('Limit_X: '+str(limit_x_min)+'<'+str(middle_x)+'<'+str(limit_x_max))
+                                # print('Limit_Y: '+str(limit_y_min)+'<'+str(middle_y)+'<'+str(limit_y_max))
+                                # print(ratio)
+                                if ratio<1.4:
+                                    dist=distance((x,y),(Pr_number_x,Pr_number_y))
+                                    # print(dist)
+                                    if y<(Pr_number_y+10) and middle_y>centery and dist<min_dist and x<Pr_number_x:
+                                        min_dist=dist
+                                        bboxes=[]
+                                        bboxes.append((x,y,w,h,number))
+                                    # elif bboxes==[]:
+                                    #     if dist<min_dist and dist<65 and ratio<1.1 and y<1.1*centery:
+                                    #         min_dist=dist
+                                    #         bboxes=[]
+                                    #         bboxes.append((x,y,w,h,number))
+
+                                    
+                        else:
+                            condition=False
+                    if len(iterations)==0:
+                        print('lol')
+                    if bboxes:
+                        number=bboxes[0][4]
+                        del contours[number]
+                        number_detected=draw_bounding_boxes(draw1,bboxes)
+                        numbers_detected.append((number_detected,8))
+                    else:
+                        numbers_detected.append(((point[0],point[1],0,0),8))
+                        print('Ningun 8 detectado')
+                        
+
+                    cv2.circle(draw1,tuple(point),2,(0,0,255),-1)
+                
+                elif angle in [180]:
+                    limit_x_max=int(point[0]+70)
+                    limit_x_min=int(point[0]-70)
+                    limit_y_max=int(point[1]+80)
+                    limit_y_min=int(point[1]-80)
+                    # cv2.rectangle(draw1, (limit_x_min, limit_y_min), (limit_x_min +(limit_x_max-limit_x_min), limit_y_min + (limit_y_max-limit_y_min)), (0, 255, 255), 1)
+                    min_dist=float('inf')
+                    iterations=contours.copy()
+                    while condition:
+                        number,nearest_contour,point_contour=near_contour(iterations,point)
+                        if number is not None or nearest_contour is not None or point_contour is not None:
+                            del iterations[number] 
+                            hull=cv2.convexHull(nearest_contour,returnPoints=True)
+                            perimeter = cv2.arcLength(nearest_contour, True)
+                            approx = cv2.approxPolyDP(nearest_contour, 0.01 * perimeter, True)
+                            x, y, w, h = cv2.boundingRect(nearest_contour)
+                            middle_x,middle_y=calculate_centroid((x,y,w,h,number))
+                            ratio=w/h
+                            area=cv2.contourArea(nearest_contour)
+                            area_r=w*h
+                            for item in numbers_detected:
+                                if item[1] == 8:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=item[0]
+                                else:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=(centerx+6,0,0,0)
+                                    cv2.circle(draw1,(centerx,centery),2,(0,0,255),-1)
+                            
+
+                            if limit_x_min<middle_x<limit_x_max and limit_y_min<middle_y<limit_y_max and area_r>69: 
+                                # print('Inicio')
+                                # print('Limit_X: '+str(limit_x_min)+'<'+str(middle_x)+'<'+str(limit_x_max))
+                                # print('Limit_Y: '+str(limit_y_min)+'<'+str(middle_y)+'<'+str(limit_y_max))
+                                # print(ratio)
+                                if ratio<1.4:
+                                    # print(ratio)
+                                    dist=distance((x,y),(Pr_number_x,Pr_number_y))
+                                    # print(dist)
+                                    if y<(Pr_number_y+10) and dist<min_dist and x<Pr_number_x+30:
+                                        min_dist=dist
+                                        bboxes=[]
+                                        bboxes.append((x,y,w,h,number))
+                                    # elif bboxes==[]:
+                                    #     if dist<min_dist and dist<65 and ratio<1.1 and y<1.1*centery:
+                                    #         min_dist=dist
+                                    #         bboxes=[]
+                                    #         bboxes.append((x,y,w,h,number))
+
+                                    
+                        else:
+                            condition=False
+                    if len(iterations)==0:
+                        print('lol')
+                    if bboxes:
+                        number=bboxes[0][4]
+                        del contours[number]
+                        number_detected=draw_bounding_boxes(draw1,bboxes)
+                        numbers_detected.append((number_detected,9))
+                    else:
+                        numbers_detected.append(((point[0],point[1],0,0),9))
+                        print('Ningun 9 detectado')
+                        
+
+                    cv2.circle(draw1,tuple(point),2,(0,0,255),-1)
+
+                elif angle in [150]:
+                    limit_x_max=int(point[0]+70)
+                    limit_x_min=int(point[0]-70)
+                    limit_y_max=int(point[1]+80)
+                    limit_y_min=int(point[1]-80)
+                    cv2.rectangle(draw1, (limit_x_min, limit_y_min), (limit_x_min +(limit_x_max-limit_x_min), limit_y_min + (limit_y_max-limit_y_min)), (0, 255, 255), 1)
+                    min_dist=float('inf')
+                    iterations=contours.copy()
+                    while condition:
+                        number,nearest_contour,point_contour=near_contour(iterations,point)
+                        if number is not None or nearest_contour is not None or point_contour is not None:
+                            del iterations[number] 
+                            x, y, w, h = cv2.boundingRect(nearest_contour)
+                            middle_x,middle_y=calculate_centroid((x,y,w,h,number))
+                            ratio=w/h
+                            area_r=w*h
+
+                            for item in numbers_detected:
+                                if item[1] == 9:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=item[0]
+                                else:
+                                    Pr_number_x,Pr_number_y,Pr_number_w,Pr_number_h=(centerx+6,0,0,0)
+                                    cv2.circle(draw1,(centerx,centery),2,(0,0,255),-1)
+                            
+                            # cv2.rectangle(draw1, (x, y), (x +w, y + h), (0, 255, 255), 1) 
+                            if limit_x_min<middle_x<limit_x_max and limit_y_min<middle_y<limit_y_max:   
+                                dist=distance((x,y),(Pr_number_x,Pr_number_y))
+                                if ratio>1.2:
+                                    if 300<=area_r<1400:
+                                        bboxes=[]
+                                        # cv2.rectangle(draw1, (x, y), (x +w, y + h), (0, 0, 255), 1)
+                                        bboxes.append((x,y,w,h,number))
+                                        # cv2.circle(draw1,(middle_x,middle_y),2,(0,0,255),-1)
+                                        condition=False
+                                else:
+                                    # cv2.rectangle(draw1, (x, y), (x +w, y + h), (0, 255, 255), 1)
+                                    if 48<=area_r<1300:
+                                        bboxes.append((x,y,w,h,number))
+                                        # cv2.rectangle(draw1, (x, y), (x +w, y + h), (255, 0, 0), 1)
+                                    else:
+                                        h=int(h*0.5)
+                                        if h>w:
+                                            bboxes=[]
+                                            bboxes.append((x,y,w,h,number))
+                                            # cv2.rectangle(draw1, (x, y), (x +w, y + h), (255, 0, 0), 1)
+                                            condition=False  
+
+                                    
+                        else:
+                            condition=False
+                    
+                    if len(iterations)==0:
+                        print('lol')
 
                     # Keep track of the closest pair of bounding boxes
-                    closest_pair = None
-                    min_separation = float('inf')
-                    closest_bboxes=[]
-                    min_dist1 = float('inf')
-                    min_dist2 = float('inf')
+                    if len(bboxes)>1:
+                        closest_pair = None
+                        min_separation = float('inf')
+                        closest_bboxes=[]
+                        numbers=None
 
-                    # Iterate over each pair of bounding boxes
-                    for i in range(len(bboxes)):
-                        centroid1 = calculate_centroid(bboxes[i])
-                        x,y,w,h=bboxes[i]
-                        for j in range(i+1, len(bboxes)):
-                            x1,y1,w1,h1=bboxes[j]
-                            final_w=w+w1
-                            f_ratio=final_w/h
-                            dist_y=abs(y-y1)
-                            centroid2 = calculate_centroid(bboxes[j])
-                            separation = distance(centroid1, centroid2)
-                            if separation < min_separation and f_ratio>0.6 and dist_y<7:
-                                min_separation = separation
-                                closest_pair = (i, j)
-                                closest_bboxes=[bboxes[i],bboxes[j]]
-                    draw_bounding_boxes(draw1, closest_bboxes)
+                        # Iterate over each pair of bounding boxes
+                        for i in range(len(bboxes)):
+                            centroid1 = calculate_centroid(bboxes[i])
+                            x,y,w,h,number_i=bboxes[i]
+                            for j in range(i+1, len(bboxes)):
+                                x1,y1,w1,h1,number_j=bboxes[j]
+                                final_w=w+w1
+                                f_ratio=final_w/h
+                                dist_y=abs(y-y1)
+                                centroid2 = calculate_centroid(bboxes[j])
+                                separation = distance(centroid1, centroid2)
+                                if separation < min_separation and f_ratio>0.6 and dist_y<7:
+                                    min_separation = separation
+                                    closest_pair = (i, j)
+                                    closest_bboxes=[bboxes[i],bboxes[j]]
+                                    numbers=(number_i,number_j)
 
+                        if closest_bboxes:
+                            number_detected=draw_bounding_boxes(draw1, closest_bboxes)
+                            numbers_detected.append((number_detected,10))
 
+                        if numbers is not None:
+                            del contours[numbers[0]]
+                            del contours[numbers[1]]
+                        else:
+                            print("Ningun 10 detectado")
+            
+                    elif len(bboxes)==1 and number is not None:
+                        del contours[number]
+                        number_detected=draw_bounding_boxes(draw1,bboxes)
+                        numbers_detected.append((number_detected,10))
+                    else:
+                        print("Ningun 10 detectado")
+                        
 
-                cv2.circle(draw1,tuple(point),2,(0,0,255),-1)
+                    cv2.circle(draw1,tuple(point),2,(0,0,255),-1)
+                # if numbers_detected:
+                #     print('si')
+                # else:
+                #     print('no')
+            # cv2.drawContours(draw1,contours,-1,(0,0,255),1)
+            # print(numbers_detected)
 
-            # cv2.drawContours(draw1,contours,-1,(0,255,0),1)
 
 
 

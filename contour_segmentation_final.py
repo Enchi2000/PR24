@@ -45,7 +45,7 @@ def group_angles_with_tolerance(angles_lengths):
         angle, length , x , y= angles_lengths[i]
 
         # Check if there's a current group and if the angle is within tolerance of the last angle in the group
-        if current_group and abs(angle - current_group[-1][0]) <= 0.1 * current_group[-1][0]:
+        if current_group and abs(angle - current_group[-1][0]) <= 0.15 * current_group[-1][0]:
             current_group.append((angle, length))
             x_group.append(x)
             y_group.append(y)
@@ -222,17 +222,19 @@ for file in os.listdir(args.path_to_roi):
                     nearest_contour = contour
 
         cv2.drawContours(mask4,[nearest_contour],-1,(255,255,255),thickness=cv2.FILLED)
-        mask4=cv2.bitwise_and(mask4,mask4,mask=adjust2)
-        hand_clock=cv2.bitwise_and(img,img,mask=mask4)
+        #---------------ESTO NO SE NECESITA!!!!!!!!---------
+        # mask4=cv2.bitwise_and(mask4,mask4,mask=adjust2)
 
         mask5=mask2+mask4
         numbers=cv2.bitwise_not(mask5)
         numbers=cv2.bitwise_and(img,img,mask=numbers)
         three_channel_mask2=cv2.merge([mask5]*3)
         numbers=numbers+three_channel_mask2
+        #------------------------------------------------
 
         contours, _ = cv2.findContours(mask4, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         for contour in contours:
+            print(len(contours))
             test=cv2.convexHull(contour)
             lowest_point = (0,0)
             threshold_distance = 40
@@ -266,8 +268,8 @@ for file in os.listdir(args.path_to_roi):
                     if angle < 0:
                         angle += 360.0
                     if angle>10 and angle<70:
-                        cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 1)
-                        cv2.circle(img,lowest_point,2,(0,0,255),-1)
+                        # cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 1)
+                        # cv2.circle(img,lowest_point,2,(0,0,255),-1)
                         angles_lengths.append((angle,distance1,x1,y1))
                 if distance1 < 30:
                     angle = np.arctan2(y2-y1, x1-x2) * 180.0 / np.pi
@@ -275,8 +277,8 @@ for file in os.listdir(args.path_to_roi):
                     if angle < 0:
                         angle += 360.0
                     if angle>90 and angle<160:
-                        cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 1)
-                        cv2.circle(img,lowest_point,2,(0,0,255),-1)
+                        # cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 1)
+                        # cv2.circle(img,lowest_point,2,(0,0,255),-1)
                         angles_lengths.append((angle,distance,x2,y2))
             angles_lengths.sort(key=lambda x:x[0])
             grouped_angles=group_angles_with_tolerance(angles_lengths)
@@ -288,14 +290,15 @@ for file in os.listdir(args.path_to_roi):
                 
                 # Draw the line
                 cv2.line(img, (int(x_A),int(y_A)), (x2, y2), (0, 0, 255), 2)
+        
         #---------------------------------------------------------------------
         # Show windows with images
 
         cv2.imshow('Img',img)
         cv2.imshow('contour',final_contour)
-        cv2.imshow('rest',rest)
+        cv2.imshow('rest',rest_gray_th)
         cv2.imshow('numbers',numbers)
-        cv2.imshow('hand_clock',mask4)
+        cv2.imshow('hand_clock',adjust)
     
         # plt.figure()
         # plt.title('Histogram of Grayscale Image')
@@ -308,7 +311,7 @@ for file in os.listdir(args.path_to_roi):
         #----------------------
         
         #Save the image into the directory
-        # cv2.imwrite(args.path_to_save_contour+'/'+file_name+'.png',adjust)
+        # cv2.imwrite(args.path_to_save_contour+'/'+file_name+'.png',rest_gray_th)
 
         #Wait unti key is pressed
         cv2.waitKey(0)

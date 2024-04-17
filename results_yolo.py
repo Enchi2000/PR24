@@ -504,7 +504,9 @@ for file in os.listdir('/home/enchi/Documentos/PEF/test_images'):
         for bbox,label in numbers_detected:
             x,y,w,h=bbox
             mask = np.zeros_like(source)
-            mask[y:y+h,x:x+w]=source[y:y+h,x:x+w]      
+            mask[y:y+h,x:x+w]=source[y:y+h,x:x+w] 
+            if label==0:
+                label=12     
             # cv2.imshow('mask',mask)              
             results = model(mask, conf=0.6, iou=0.7,max_det=200,imgsz=448,verbose=False)
             xyxys = []
@@ -527,8 +529,6 @@ for file in os.listdir('/home/enchi/Documentos/PEF/test_images'):
                         class_name = class_ids[i]
                         labels.append(label)
                         class_names.append(class_name)
-                        if label==0:
-                            label=12
                         if class_name==label:
                             cv2.rectangle(draw, (x1, y1), (x2, y2), (0, 255,0), 1)
                             print('Correct preddiction')

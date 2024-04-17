@@ -242,7 +242,7 @@ for file in os.listdir('/home/enchi/Documentos/PEF/test_images'):
         gray=cv2.cvtColor(source,cv2.COLOR_BGR2GRAY)
         draw1=source.copy()
         mask = np.zeros_like(source)
-        circle=np.zeros_like(gray)
+        bboxes_img=np.zeros_like(gray)
     
         M=cv2.moments(clock_contour)
         #Calculate the center of contour
@@ -497,38 +497,71 @@ for file in os.listdir('/home/enchi/Documentos/PEF/test_images'):
                     cv2.circle(draw1,tuple(point),2,(0,0,255),-1)
  
             cv2.drawContours(draw1,contours,-1,(0,0,255),1)
-        print(numbers_detected)
-        # for bbox,label in numbers_detected:
-        #     x,y,w,h=bbox
-        #     mask = np.zeros_like(source)
-        #     mask[y:y+h,x:x+w]=source[y:y+h,x:x+w]
-        #     results = model(mask, conf=0.6, iou=0.7,max_det=200,imgsz=448)
-        #     xyxys = []
-        #     confidences = []
-        #     class_ids = []
-        #     for result in results:
-        #         boxes = result.boxes.cpu().numpy()
-        #         xyxys.extend(boxes.xyxy)  # Use extend to append multiple values
-        #         confidences.extend(boxes.conf)
-        #         class_ids.extend(boxes.cls)
-        #         for i, xyxy in enumerate(xyxys):
-        #             x1, y1, x2, y2 = map(int, xyxy)
-        #             class_name = class_ids[i]
-        #             # Assuming confidences contain confidence scores
-        #             confidence = confidences[i]
-        #             label = f'{class_name}: {confidence:.2f}'    
-        #             cv2.rectangle(draw, (x1, y1), (x2, y2), (0, 255,0), 1)
-        #             cv2.putText(draw, label, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
-            
+        # print(numbers_detected)
+        class_names=[]
+        labels=[]
+        print('Initiatin predictions')
+        for bbox,label in numbers_detected:
+            x,y,w,h=bbox
+            mask = np.zeros_like(source)
+            mask[y:y+h,x:x+w]=source[y:y+h,x:x+w]      
+            # cv2.imshow('mask',mask)              
+            results = model(mask, conf=0.6, iou=0.7,max_det=200,imgsz=448,verbose=False)
+            xyxys = []
+            confidences = []
+            class_ids = []
+            if w !=0 and h!=0:
+                for result in results:
+                    cv2.rectangle(bboxes_img, (x, y), (x+w, y+h), 255, -1)
+                    boxes = result.boxes.cpu().numpy()
+                    xyxys.extend(boxes.xyxy)  # Use extend to append multiple values
+                    confidences.extend(boxes.conf)
+                    class_ids.extend(boxes.cls)
+                    if xyxys==[]:
+                        print('something detected but not preddicted')
+                        cv2.rectangle(draw, (x, y), (x+w, y+h), (255, 0,0), 1)
+                        text = f'{label}: {0:.2f}'
+                        cv2.putText(draw, text, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 0, 0), 1)
+                    for i, xyxy in enumerate(xyxys):
+                        x1, y1, x2, y2 = map(int, xyxy)
+                        class_name = class_ids[i]
+                        labels.append(label)
+                        class_names.append(class_name)
+                        if label==0:
+                            label=12
+                        if class_name==label:
+                            cv2.rectangle(draw, (x1, y1), (x2, y2), (0, 255,0), 1)
+                            print('Correct preddiction')
+                            confidence = confidences[i]
+                            text = f'{class_name}: {confidence:.2f}'
+                            cv2.putText(draw, text, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 1)
+                        elif class_name==label+1 or class_name==label-1:
+                            cv2.rectangle(draw, (x1, y1), (x2, y2), (0, 165,255), 1)
+                            confidence = confidences[i]
+                            text = f'{class_name}: {confidence:.2f}'
+                            cv2.putText(draw, text, (x1, y1 - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 165, 255), 1)
+                            print("Error in arrangement")
+                        else:
+                            cv2.rectangle(draw, (x, y), (x+w, y+h), (0, 0,255), 1)
+                            text = f'{label}: {0:.2f}'
+                            cv2.putText(draw, text, (x, y - 5), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 0, 255), 1)
+                            print("Need to check")
+                       
+        result_mask = cv2.bitwise_and(clock_contour, bboxes_img)
+        overlap_percentage = np.sum(result_mask) / np.sum(bboxes_img)
+        print(overlap_percentage)
+       
         #------------------------------------------------------------------------------------------
         # cv2.imshow('draw', draw)
-        cv2.namedWindow('source',cv2.WINDOW_NORMAL)
-        cv2.resizeWindow('source', 800, 600)  # Set the width and height of the window
-        cv2.imshow('source',draw1)
+        # cv2.namedWindow('source',cv2.WINDOW_NORMAL)
+        # cv2.resizeWindow('source', 800, 600)  # Set the width and height of the window
+        # cv2.imshow('source',draw1)
         # cv2.imshow('mask',mask)
         # cv2.imshow('gray',gray)
         # cv2.imshow('test',test)
-        # cv2.imshow('circle',draw1)
-
+        cv2.imshow('source',source)
+        cv2.imshow('circle',clock_contour)
+        cv2.imshow('draw', draw)
+        # cv2.imshow('bboxes',bboxes_img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()

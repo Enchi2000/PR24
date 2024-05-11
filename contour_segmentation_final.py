@@ -16,10 +16,10 @@ args=parser.parse_args()
 
 #Ventanas para visualizar imagenes
 cv2.namedWindow('Img',cv2.WINDOW_NORMAL)
-cv2.namedWindow('contour',cv2.WINDOW_NORMAL)
-cv2.namedWindow('rest',cv2.WINDOW_NORMAL)
-cv2.namedWindow('numbers',cv2.WINDOW_NORMAL)
-cv2.namedWindow('hand_clock',cv2.WINDOW_NORMAL)
+# cv2.namedWindow('contour',cv2.WINDOW_NORMAL)
+# cv2.namedWindow('rest',cv2.WINDOW_NORMAL)
+# cv2.namedWindow('numbers',cv2.WINDOW_NORMAL)
+# cv2.namedWindow('hand_clock',cv2.WINDOW_NORMAL)
 #-------------------------------------------
 
 #Inicializacion de variables
@@ -107,7 +107,7 @@ for file in os.listdir(args.path_to_roi):
         #Make the image sharper
         sharp_image = cv2.convertScaleAbs(laplacian-blurred)
         laplacian=cv2.convertScaleAbs(laplacian)
-        # histogram = cv2.calcHist([sharp_image], [0], None, [256], [0, 256])
+        histogram = cv2.calcHist([sharp_image], [0], None, [256], [0, 256])
 
         #Apply binarization to image
         ret,img_threshold=cv2.threshold(sharp_image,229,255,cv2.THRESH_BINARY_INV)
@@ -138,7 +138,8 @@ for file in os.listdir(args.path_to_roi):
 
         #Define kernel for morphological operations
         kernel=np.ones((5,5),np.uint8)
-
+        # cv2.drawContours(img,detected_inner_contours,-1,(0,255,0),thickness=2)
+        # cv2.drawContours(img,hull_detected,-1,(0,0,255),thickness=2)
         #If detected inner and outer contour
         if detected_inner_contours and detected_outer_contours:
             #Draw inner contours in mask
@@ -174,6 +175,7 @@ for file in os.listdir(args.path_to_roi):
                 final_shape.append(hull)
 
         cv2.drawContours(mask2,final_shape,-1,(255,255,255),thickness=cv2.FILLED)
+
         adjust=cv2.erode(mask2,kernel,iterations=4)
         mask2=mask2-adjust
         other=cv2.bitwise_not(mask2)
@@ -222,20 +224,22 @@ for file in os.listdir(args.path_to_roi):
                     nearest_contour = contour
 
         cv2.drawContours(mask4,[nearest_contour],-1,(255,255,255),thickness=cv2.FILLED)
+        # cv2.drawContours(img,[nearest_contour],-1,(0,0,255),thickness=cv2.FILLED)
         #---------------ESTO NO SE NECESITA!!!!!!!!---------
         # mask4=cv2.bitwise_and(mask4,mask4,mask=adjust2)
 
-        mask5=mask2+mask4
-        numbers=cv2.bitwise_not(mask5)
-        numbers=cv2.bitwise_and(img,img,mask=numbers)
-        three_channel_mask2=cv2.merge([mask5]*3)
-        numbers=numbers+three_channel_mask2
+        # mask5=mask2+mask4
+        # numbers=cv2.bitwise_not(mask5)
+        # numbers=cv2.bitwise_and(img,img,mask=numbers)
+        # three_channel_mask2=cv2.merge([mask5]*3)
+        # numbers=numbers+three_channel_mask2
         #------------------------------------------------
-
+        # hull_list=[]
         contours, _ = cv2.findContours(mask4, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
         for contour in contours:
-            print(len(contours))
             test=cv2.convexHull(contour)
+            # hull_list.append(test)
+            # cv2.drawContours(img,hull_list,-1,(0,0,255),thickness=2)
             lowest_point = (0,0)
             threshold_distance = 40
             for point in test:
@@ -247,6 +251,7 @@ for file in os.listdir(args.path_to_roi):
                 # cv2.circle(img, tuple(point[0]), 3, (0, 255, 0), -1)  # Draw a filled circle at each point
         if lowest_point==(0,0):
             lowest_point = center
+        # cv2.circle(img,lowest_point,3,(0,0,255),-1)
         
         # cv2.drawContours(hands,[nearest_contour],-1,(255,255,255),thickness=cv2.FILLED)
         edges = cv2.Canny(rest_gray, 50,150,apertureSize=3)  # Adjust the thresholds as needed
@@ -268,7 +273,7 @@ for file in os.listdir(args.path_to_roi):
                     if angle < 0:
                         angle += 360.0
                     if angle>10 and angle<70:
-                        # cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 1)
+                        # cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
                         # cv2.circle(img,lowest_point,2,(0,0,255),-1)
                         angles_lengths.append((angle,distance1,x1,y1))
                 if distance1 < 30:
@@ -277,7 +282,7 @@ for file in os.listdir(args.path_to_roi):
                     if angle < 0:
                         angle += 360.0
                     if angle>90 and angle<160:
-                        # cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 1)
+                        # cv2.line(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
                         # cv2.circle(img,lowest_point,2,(0,0,255),-1)
                         angles_lengths.append((angle,distance,x2,y2))
             angles_lengths.sort(key=lambda x:x[0])
@@ -294,11 +299,11 @@ for file in os.listdir(args.path_to_roi):
         #---------------------------------------------------------------------
         # Show windows with images
 
-        cv2.imshow('Img',img)
-        cv2.imshow('contour',final_contour)
-        cv2.imshow('rest',rest_gray_th)
-        cv2.imshow('numbers',numbers)
-        cv2.imshow('hand_clock',adjust)
+        cv2.imshow('Img',final_contour)
+        # cv2.imshow('contour',final_contour)
+        # cv2.imshow('rest',sharp_image)
+        # cv2.imshow('numbers',numbers)
+        # cv2.imshow('hand_clock',adjust)
     
         # plt.figure()
         # plt.title('Histogram of Grayscale Image')
@@ -311,7 +316,7 @@ for file in os.listdir(args.path_to_roi):
         #----------------------
         
         #Save the image into the directory
-        # cv2.imwrite(args.path_to_save_contour+'/'+file_name+'.png',rest_gray_th)
+        # cv2.imwrite(args.path_to_save_contour+'/'+file_name+'.png', img)
 
         #Wait unti key is pressed
         cv2.waitKey(0)

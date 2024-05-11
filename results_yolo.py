@@ -284,6 +284,8 @@ for file in os.listdir('/home/enchi/Documentos/PEF/test_images'):
             # print(rearranged_list)
             numbers_detected=[]
             for point, angle in rearranged_list:
+                if len(rearranged_list)<12:
+                    continue
                 bboxes=[]
                 condition=True
                 if angle in [90]:
@@ -291,7 +293,7 @@ for file in os.listdir('/home/enchi/Documentos/PEF/test_images'):
                     limit_x_min=int(point[0]-40)
                     limit_y_max=int(point[1]+60)
                     limit_y_min=int(point[1]-70)
-                    # cv2.rectangle(draw1, (limit_x_min, limit_y_min), (limit_x_min +(limit_x_max-limit_x_min), limit_y_min + (limit_y_max-limit_y_min)), (255, 255, 0), 1) 
+                    # cv2.rectangle(draw1, (limit_x_min, limit_y_min), (limit_x_min +(limit_x_max-limit_x_min), limit_y_min + (limit_y_max-limit_y_min)), (0, 0,255), 1) 
                     iterations=contours.copy()
                     while condition:
                         number,nearest_contour,point_contour=near_contour(iterations,point)
@@ -370,6 +372,7 @@ for file in os.listdir('/home/enchi/Documentos/PEF/test_images'):
                         numbers_detected.append(((point[0],point[1],0,0),0))
                                 
                 elif angle in [60]:
+                    
                     bboxes=get_number(condition,0)
                 elif angle in [30]:
                     bboxes=get_number(condition,1)
@@ -495,8 +498,7 @@ for file in os.listdir('/home/enchi/Documentos/PEF/test_images'):
 
                     cv2.circle(draw1,tuple(point),2,(0,0,255),-1)
                     cv2.circle(draw1,tuple(point),2,(0,0,255),-1)
- 
-            cv2.drawContours(draw1,contours,-1,(0,0,255),1)
+            # cv2.drawContours(draw1,contours,-1,(0,0,255),1)
         # print(numbers_detected)
         class_names=[]
         labels=[]
@@ -562,6 +564,7 @@ for file in os.listdir('/home/enchi/Documentos/PEF/test_images'):
         cv2.imshow('source',source)
         cv2.imshow('circle',clock_contour)
         cv2.imshow('draw', draw)
+        cv2.imwrite('/home/enchi/Documentos/Thesis/'+file_name+'.png', draw)
         # cv2.imshow('bboxes',bboxes_img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()

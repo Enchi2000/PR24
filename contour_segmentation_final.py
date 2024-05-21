@@ -91,6 +91,7 @@ for file in os.listdir(args.path_to_roi):
         height, width, _ = img.shape
         #Transforms image into grayscale
         img_gray=cv2.cvtColor(img,cv2.COLOR_BGR2GRAY)
+        
         #Create mask for future bitwise operations
         mask=np.zeros_like(img_gray)
         mask1=np.zeros_like(img_gray)
@@ -108,6 +109,8 @@ for file in os.listdir(args.path_to_roi):
         sharp_image = cv2.convertScaleAbs(laplacian-blurred)
         laplacian=cv2.convertScaleAbs(laplacian)
         histogram = cv2.calcHist([sharp_image], [0], None, [256], [0, 256])
+
+        
 
         #Apply binarization to image
         ret,img_threshold=cv2.threshold(sharp_image,229,255,cv2.THRESH_BINARY_INV)
@@ -167,6 +170,7 @@ for file in os.listdir(args.path_to_roi):
 
         #Close any open contour
         result=cv2.morphologyEx(result, cv2.MORPH_CLOSE, kernel)
+        
 
         contours,hierarchy=cv2.findContours(result,cv2.RETR_TREE,cv2.CHAIN_APPROX_NONE)
         for i,contour in enumerate(contours):
@@ -175,10 +179,12 @@ for file in os.listdir(args.path_to_roi):
                 final_shape.append(hull)
 
         cv2.drawContours(mask2,final_shape,-1,(255,255,255),thickness=cv2.FILLED)
+          
 
         adjust=cv2.erode(mask2,kernel,iterations=4)
         mask2=mask2-adjust
-        other=cv2.bitwise_not(mask2)
+        other=cv2.bitwise_not(mask2)  
+          
 
         final_contour=cv2.bitwise_and(img,img,mask=mask2)
         rest1=cv2.bitwise_and(img,img,mask=other)
@@ -299,7 +305,7 @@ for file in os.listdir(args.path_to_roi):
         #---------------------------------------------------------------------
         # Show windows with images
 
-        cv2.imshow('Img',final_contour)
+        cv2.imshow('Img',img)
         # cv2.imshow('contour',final_contour)
         # cv2.imshow('rest',sharp_image)
         # cv2.imshow('numbers',numbers)

@@ -564,7 +564,7 @@ for file in os.listdir('/home/enchi/Documentos/PEF/test_images'):
         cv2.imshow('source',source)
         cv2.imshow('circle',clock_contour)
         cv2.imshow('draw', draw)
-        cv2.imwrite('/home/enchi/Documentos/Thesis/'+file_name+'.png', draw)
+        # cv2.imwrite('/home/enchi/Documentos/Thesis/'+file_name+'.png', draw)
         # cv2.imshow('bboxes',bboxes_img)
         cv2.waitKey(0)
         cv2.destroyAllWindows()

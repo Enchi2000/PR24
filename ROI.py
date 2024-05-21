@@ -55,7 +55,7 @@ for file in os.listdir(args.path_to_PNG):
         cv2.imshow('ROI',resized_roi)
         cv2.imshow('Thresh',thresh)
         cv2.imshow('Gray',img_gray)
-        cv2.imwrite(args.path_to_saved_ROI+'/'+file_name+'.png',img)
+        cv2.imwrite(args.path_to_saved_ROI+'/'+file_name+'.png',rotated_image)
         cv2.waitKey(0)
         detected_contours=[]
 

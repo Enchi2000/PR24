@@ -115,7 +115,7 @@ def get_number(condition,reference):
         else:
             condition=False
     if len(iterations)==0:
-        print('lol')
+        print('Error')
     if bboxes:
         number=bboxes[0][4]
         del contours[number]
